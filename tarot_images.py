@@ -48,41 +48,37 @@ CARD_NAME_MAPPING = {
 
 async def get_tarot_image_from_api(card_name: str) -> Optional[str]:
     """
-    Получить URL изображения карты из API
-    
-    Returns:
-        URL изображения или None если не найдено
+    Получить путь к изображению карты из локальных файлов
     """
     try:
-        # Преобразуем русское название в английское для API
-        api_name = CARD_NAME_MAPPING.get(card_name, card_name.lower().replace(" ", "-"))
+        from card_image_mapping import get_card_image_path, CARD_TO_IMAGE_PATH
         
-        # Используем бесплатный GitHub CDN с изображениями таро
-        # Пример: https://raw.githubusercontent.com/ekelen/tarot-api/master/images/{card}
+        # Проверяем локальные файлы
+        image_path = get_card_image_path(card_name)
         
-        # Пробуем первый источник - прямые ссылки на GitHub
-        github_url = f"https://raw.githubusercontent.com/ekelen/tarot-api/master/images/{api_name}.jpg"
+        if image_path and os.path.exists(image_path):
+            logger.info(f"Локальное изображение найдено: {card_name}")
+            return image_path
         
-        # Проверяем доступность изображения
-        async with aiohttp.ClientSession() as session:
-            async with session.get(github_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
-                if response.status == 200:
-                    return github_url
+        # Проверяем есть ли в словаре (если загружены на GitHub)
+        if card_name in TAROT_IMAGE_URLS and TAROT_IMAGE_URLS[card_name]:
+            return TAROT_IMAGE_URLS[card_name]
         
-        # Если GitHub не работает, возвращаем None
         return None
     except Exception as e:
-        logger.error(f"Ошибка при получении изображения {card_name}: {e}")
+        logger.debug(f"Изображение не найдено для {card_name}: {e}")
         return None
 
 
 # Словарь с прямыми ссылками на изображения карт таро
-# Эти ссылки ведут на бесплатные изображения из открытых источников
+# Добавьте сюда ссылки на ваши изображения
+# Пример: "Дурак": "https://imgur.com/abc123.jpg"
 TAROT_IMAGE_URLS = {
-    # Старшие арканы - используем прямой API
-    "Дурак": None,  # Будет использоваться эмодзи 🃏
-    "Маг": None,
-    # Добавьте URL для остальных карт по мере необходимости
+    # ВОТ СЮДА ДОБАВЬТЕ ВАШИ ИЗОБРАЖЕНИЯ!
+    # Например:
+    # "Дурак": "https://imgur.com/fool.jpg",
+    # "Маг": "https://imgur.com/magician.jpg",
+    # ...
 }
 
 

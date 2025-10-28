@@ -90,7 +90,14 @@ async def cmd_menu(message: types.Message):
     await show_main_menu(message)
 
 
-async def show_main_menu(message: types.Message):
+@dp.callback_query(lambda c: c.data == "back_to_menu")
+async def handle_back_to_menu(callback: CallbackQuery):
+    """Обработка кнопки 'Назад в меню'"""
+    await callback.answer()
+    await show_main_menu(callback)
+
+
+async def show_main_menu(message_or_callback):
     """Показывает главное меню"""
     keyboard = [
         [InlineKeyboardButton(text="🌙 Карта дня", callback_data="daily_card")],
@@ -103,20 +110,20 @@ async def show_main_menu(message: types.Message):
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    # Проверяем, это ответ на существующее сообщение или новое
-    try:
-        # Пробуем отредактировать существующее сообщение
-        await message.edit_text(
-            "🔮 *Твой Таролог*\n\n"
-            "Выбери интересующий раздел:",
+    text = "🔮 *Твой Таролог*\n\nВыбери интересующий раздел:"
+    
+    # Проверяем тип - callback или message
+    if isinstance(message_or_callback, CallbackQuery):
+        # Callback query - редактируем сообщение
+        await message_or_callback.message.edit_text(
+            text,
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
-    except:
-        # Если редактирование не получилось - отправляем новое сообщение
-        await message.answer(
-            "🔮 *Твой Таролог*\n\n"
-            "Выбери интересующий раздел:",
+    else:
+        # Message - отправляем новое
+        await message_or_callback.answer(
+            text,
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
@@ -128,48 +135,64 @@ async def handle_daily_card(callback: CallbackQuery):
     from tarot_cards import get_daily_card
     from tarot_images import get_card_full_info, get_tarot_image_from_api
     
+    await callback.answer()
+    
     card, is_reversed = get_daily_card()
     interpretation = get_card_meaning(card, is_reversed)
     
     # Получаем визуализацию карты
     card_visual = get_card_full_info(card, is_reversed)
-    
-    status = "ПЕРЕВЕРНУТА" if is_reversed else "ПРЯМАЯ"
     status_text = "🔴 ПЕРЕВЕРНУТА" if is_reversed else "🟢 ПРЯМАЯ"
     
-    # Пробуем получить изображение из API
+    # Пробуем получить изображение
     image_url = await get_tarot_image_from_api(card["name"])
     
+    # Добавляем кнопку "Назад"
+    keyboard = [
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    text = (
+        f"🌙 *Твоя карта дня*\n\n"
+        f"*{card['name']}*\n"
+        f"Позиция: {status_text}\n\n"
+        f"*Толкование:*\n{interpretation}\n\n"
+        f"_Следующая карта будет доступна через 24 часа_"
+    )
+    
+    # Если есть изображение - отправляем фото
     if image_url:
-        # Отправляем фото если есть URL изображения
         try:
-            caption = (
-                f"🌙 *Твоя карта дня*\n\n"
-                f"*{card['name']}*\n"
-                f"Позиция: {status_text}\n\n"
-                f"*Толкование:*\n{interpretation}\n\n"
-                f"_Следующая карта будет доступна через 24 часа_"
-            )
-            await callback.message.answer_photo(
-                photo=image_url,
-                caption=caption,
-                parse_mode="Markdown"
-            )
-            await callback.answer()
+            # Проверяем это локальный файл или URL
+            if image_url.startswith("http"):
+                # Это URL - отправляем как есть
+                await callback.message.answer_photo(
+                    photo=image_url,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+            else:
+                # Это локальный файл - используем FSInputFile
+                from aiogram.types import FSInputFile
+                photo = FSInputFile(image_url)
+                await callback.message.answer_photo(
+                    photo=photo,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
             return
         except Exception as e:
-            logger.error(f"Ошибка при отправке фото: {e}")
-            # Fallback на текст если ошибка
+            logger.error(f"Ошибка отправки фото: {e}")
     
-    # Fallback - используем текст с визуализацией
+    # Fallback - текст с эмодзи
     await callback.message.edit_text(
-        f"🌙 *Твоя карта дня*\n\n"
-        f"{card_visual}"
-        f"*Толкование:*\n{interpretation}\n\n"
-        f"_Следующая карта будет доступна через 24 часа_",
+        f"🌙 *Твоя карта дня*\n\n{card_visual}*Толкование:*\n{interpretation}\n\n_Следующая карта будет доступна через 24 часа_",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    await callback.answer()
 
 
 @dp.callback_query(lambda c: c.data == "general_reading")
@@ -177,6 +200,8 @@ async def handle_general_reading(callback: CallbackQuery):
     """Обработка общего расклада на 3 карты"""
     from tarot_cards import get_three_card_reading
     from tarot_images import get_card_image_url
+    
+    await callback.answer()
     
     cards = get_three_card_reading()
     interpretation = get_combined_reading(cards)
@@ -190,23 +215,34 @@ async def handle_general_reading(callback: CallbackQuery):
         emoji = get_card_image_url(card['name'], is_reversed)
         cards_text += f"{emoji} {i}. *{card['name']}* ({status})\n📍 {position}\n\n"
     
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
     await callback.message.edit_text(
         f"🔮 *Общий расклад на 3 карты*\n\n"
         f"{cards_text}\n"
         f"*Комбинированное толкование:*\n\n{interpretation}",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    await callback.answer()
 
 
 @dp.callback_query(lambda c: c.data == "profile")
 async def handle_profile(callback: CallbackQuery):
     """Обработка профиля"""
-    user = db.get_user(callback.from_user.id)
+    await callback.answer()
+    
+    # Получаем пользователя
+    if DATABASE_URL:
+        user = await db.get_user(callback.from_user.id)
+    else:
+        user = db.get_user(callback.from_user.id)
     
     if user:
         text = (
             f"👤 *Твой профиль*\n\n"
+            f"ID: `{callback.from_user.id}`\n"
+            f"Username: @{callback.from_user.username or 'Не указан'}\n"
             f"Имя: {user.get('name', 'Не указано')}\n"
             f"Дата рождения: {user.get('birth_date', 'Не указано')}\n"
             f"Время рождения: {user.get('birth_time', 'Не указано')}\n"
@@ -214,25 +250,32 @@ async def handle_profile(callback: CallbackQuery):
             f"Рейтинг: ⭐ {user.get('rating', 0)}\n"
         )
     else:
-        text = "Профиль не найден"
+        text = "Профиль не найден. Данные еще не заполнены."
     
-    keyboard = [[InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")]]
+    keyboard = [
+        [InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-    await callback.answer()
 
 
 @dp.callback_query(lambda c: c.data == "bonus")
 async def handle_bonus(callback: CallbackQuery):
     """Обработка раздела Бонус"""
+    await callback.answer()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
     await callback.message.edit_text(
         "🎁 *Бонус раздел*\n\n"
         "Скоро здесь будет открыт специальный раздел с уникальными возможностями! ✨\n\n"
         "Следи за обновлениями в новостной ленте 🔮",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    await callback.answer()
 
 
 @dp.callback_query(lambda c: c.data == "news_feed")
@@ -240,7 +283,12 @@ async def handle_news_feed(callback: CallbackQuery):
     """Обработка новостной ленты"""
     from lunar_calendar import get_lunar_info
     
+    await callback.answer()
+    
     lunar_info = get_lunar_info()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     await callback.message.edit_text(
         f"📰 *Новостная лента*\n\n"
@@ -248,26 +296,64 @@ async def handle_news_feed(callback: CallbackQuery):
         f"📅 Фаза луны: {lunar_info['phase']}\n"
         f"🌍 Знак луны: {lunar_info['sign']}\n\n"
         f"{lunar_info['recommendation']}",
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
+
+
+@dp.callback_query(lambda c: c.data == "appointment_online")
+async def handle_online_appointment(callback: CallbackQuery):
+    """Обработка личного приема онлайн - открывает чат с админом"""
     await callback.answer()
-
-
-@dp.callback_query(lambda c: c.data == "appointment_offline" or c.data == "appointment_online")
-async def handle_appointment(callback: CallbackQuery, state: FSMContext):
-    """Обработка записи на прием"""
-    is_online = callback.data == "appointment_online"
     
-    # Получаем доступные слоты
-    slots = db.get_available_slots()
+    admin_id = os.getenv("ADMIN_ID")
+    keyboard = [
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    if not slots:
+    if admin_id:
         await callback.message.edit_text(
-            "К сожалению, в данный момент нет доступных слотов для записи.\n"
-            "Попробуйте позже или свяжитесь с администратором.",
+            "💻 *Личный прием онлайн*\n\n"
+            "Для записи на онлайн консультацию напишите напрямую:\n"
+            f"👤 @{os.getenv('ADMIN_USERNAME', 'admin')}\n\n"
+            "Или нажмите кнопку ниже для быстрого перехода:",
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
-        await callback.answer()
+    else:
+        await callback.message.edit_text(
+            "💻 *Личный прием онлайн*\n\n"
+            "Для записи на онлайн консультацию напишите напрямую администратору.\n\n"
+            "Мы свяжемся с вами в ближайшее время.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+
+@dp.callback_query(lambda c: c.data == "appointment_offline")
+async def handle_offline_appointment(callback: CallbackQuery):
+    """Обработка записи на личный прием"""
+    await callback.answer()
+    
+    # Получаем доступные слоты
+    if DATABASE_URL:
+        slots = await db.get_available_slots()
+    else:
+        slots = db.get_available_slots()
+    
+    if not slots:
+        keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        await callback.message.edit_text(
+            "📅 *Запись на личный прием*\n\n"
+            "К сожалению, в данный момент нет доступных слотов для записи.\n"
+            "Попробуйте позже или свяжитесь с администратором.\n\n"
+            "Для быстрой связи напишите:\n@администратор",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
         return
     
     # Создаем клавиатуру с доступными слотами
@@ -275,26 +361,22 @@ async def handle_appointment(callback: CallbackQuery, state: FSMContext):
     for slot in slots[:10]:  # Показываем первые 10 слотов
         date_str = slot['date']
         time_str = slot['time']
-        callback_text = f"slot_{slot['id']}"
+        slot_id = slot['id']
         keyboard.append([InlineKeyboardButton(
             text=f"📅 {date_str} в {time_str}",
-            callback_data=callback_text
+            callback_data=f"slot_{slot_id}"
         )])
     
+    keyboard.append([InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")])
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    appointment_type = "онлайн" if is_online else "личный"
-    
     await callback.message.edit_text(
-        f"📅 *Запись на {appointment_type} прием*\n\n"
-        f"Консультация длится 1 час.\n"
-        f"Выбери удобное время:",
+        "📅 *Запись на личный прием*\n\n"
+        "Консультация длится 1 час.\n"
+        "Выбери удобное время:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
-    
-    await state.update_data(is_online=is_online)
-    await callback.answer()
 
 
 def get_card_meaning(card, is_reversed):
