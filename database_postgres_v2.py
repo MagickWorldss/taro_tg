@@ -67,6 +67,40 @@ class Database:
             except Exception as e:
                 logger.debug(f"Столбец daily_card_data уже существует: {e}")
             
+            # Таблица записей на прием
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS appointments (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT,
+                    slot_id INTEGER,
+                    appointment_type TEXT,
+                    status TEXT DEFAULT 'pending',
+                    payment_status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Таблица доступных слотов
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS slots (
+                    id SERIAL PRIMARY KEY,
+                    date TEXT,
+                    time TEXT,
+                    is_booked BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Таблица новостей
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS news (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT,
+                    content TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             logger.info("База данных PostgreSQL инициализирована")
     
     # Методы для пользователей
