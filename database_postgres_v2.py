@@ -129,9 +129,21 @@ class Database:
             return
         
         try:
-            set_clause = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(kwargs.keys())])
-            values = list(kwargs.values()) + [user_id]
-            query = f"UPDATE users SET {set_clause} WHERE user_id = $1"
+            # Строим SQL запрос правильно с параметрами $1, $2, $3...
+            set_parts = []
+            values = []
+            param_num = 1
+            
+            for key, value in kwargs.items():
+                set_parts.append(f"{key} = ${param_num}")
+                values.append(value)
+                param_num += 1
+            
+            # user_id идет последним
+            where_clause = f"user_id = ${param_num}"
+            values.append(user_id)
+            
+            query = f"UPDATE users SET {', '.join(set_parts)} WHERE {where_clause}"
             
             async with pool.acquire() as conn:
                 await conn.execute(query, *values)
