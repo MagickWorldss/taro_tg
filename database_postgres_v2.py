@@ -56,6 +56,17 @@ class Database:
                 )
             """)
             
+            # Проверяем и добавляем новые столбцы если нужно (для существующих таблиц)
+            try:
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_card TIMESTAMP")
+            except Exception as e:
+                logger.debug(f"Столбец last_daily_card уже существует: {e}")
+            
+            try:
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_card_data TEXT")
+            except Exception as e:
+                logger.debug(f"Столбец daily_card_data уже существует: {e}")
+            
             logger.info("База данных PostgreSQL инициализирована")
     
     # Методы для пользователей

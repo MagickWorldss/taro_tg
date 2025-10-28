@@ -429,6 +429,28 @@ async def handle_profile(callback: CallbackQuery):
     await callback.message.edit_text(text, reply_markup=reply_markup)
 
 
+@dp.callback_query(lambda c: c.data == "edit_profile")
+async def handle_edit_profile(callback: CallbackQuery):
+    """Обработка редактирования профиля"""
+    await callback.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="📝 Имя", callback_data="edit_name")],
+        [InlineKeyboardButton(text="📅 Дата рождения", callback_data="edit_birth_date")],
+        [InlineKeyboardButton(text="🕐 Время рождения", callback_data="edit_birth_time")],
+        [InlineKeyboardButton(text="📍 Место рождения", callback_data="edit_birth_place")],
+        [InlineKeyboardButton(text="◀️ Назад к профилю", callback_data="profile")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "✏️ *Редактирование профиля*\n\n"
+        "Выбери, что хочешь изменить:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
 @dp.callback_query(lambda c: c.data == "bonus")
 async def handle_bonus(callback: CallbackQuery):
     """Обработка раздела Бонус"""
