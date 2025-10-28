@@ -1088,20 +1088,178 @@ async def handle_admin_slots(callback: CallbackQuery):
 
 
 @dp.callback_query(lambda c: c.data == "admin_add_slot")
-async def handle_admin_add_slot(callback: CallbackQuery, state: FSMContext):
+async def handle_admin_add_slot(callback: CallbackQuery):
     """Обработка кнопки Добавить слот"""
     await callback.answer()
-    await state.set_state(TarotStates.waiting_for_slot_date)
     
-    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="admin_back")]]
+    from datetime import datetime, timedelta
+    
+    # Формируем кнопки с датами на 7 дней вперед
+    keyboard = []
+    for day in range(7):
+        date = datetime.now() + timedelta(days=day)
+        date_str = date.strftime("%d.%m.%Y")
+        
+        # Подписи для первых дней
+        labels = {
+            0: "Сегодня",
+            1: "Завтра",
+            2: "Послезавтра"
+        }
+        label = labels.get(day, date.strftime("%d.%m"))
+        
+        keyboard.append([InlineKeyboardButton(
+            text=f"📅 {label} ({date_str})",
+            callback_data=f"select_date_{day}"
+        )])
+    
+    keyboard.append([InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")])
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     await callback.message.edit_text(
         "➕ *Добавить слот*\n\n"
-        "Введите дату и время в формате:\n"
-        "ДД.ММ.ГГГГ ЧЧ:ММ\n\n"
-        "Например: 29.10.2025 14:00\n\n"
-        "Или нажмите Отмена:",
+        "Выберите день для добавления слотов:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data and c.data.startswith("select_date_"))
+async def handle_select_date(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора даты"""
+    await callback.answer()
+    
+    # Получаем номер дня
+    day_offset = int(callback.data.split("_")[-1])
+    from datetime import datetime, timedelta
+    
+    target_date = datetime.now() + timedelta(days=day_offset)
+    date_str = target_date.strftime("%d.%m.%Y")
+    
+    # Сохраняем выбранную дату в состояние
+    await state.update_data(slot_date=date_str)
+    
+    # Формируем кнопки с временами
+    times = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"]
+    
+    keyboard = []
+    # Добавляем кнопки по 2 в ряд
+    for i in range(0, len(times), 2):
+        row = [InlineKeyboardButton(text=times[i], callback_data=f"select_time_{times[i]}")]
+        if i + 1 < len(times):
+            row.append(InlineKeyboardButton(text=times[i+1], callback_data=f"select_time_{times[i+1]}"))
+        keyboard.append(row)
+    
+    # Добавляем опцию "Все времена"
+    keyboard.append([InlineKeyboardButton(text="➕ Все времена (10:00-19:00)", callback_data="select_all_times")])
+    
+    keyboard.append([InlineKeyboardButton(text="❌ Отмена", callback_data="admin_add_slot")])
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    labels = {
+        0: "Сегодня",
+        1: "Завтра",
+        2: "Послезавтра"
+    }
+    label = labels.get(day_offset, date_str)
+    
+    await callback.message.edit_text(
+        f"📅 Выбрана дата: {label} ({date_str})\n\n"
+        f"Выберите время:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data and c.data.startswith("select_time_"))
+async def handle_select_time(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора времени"""
+    await callback.answer()
+    
+    # Получаем выбранное время и дату
+    time = callback.data.split("_")[-1]
+    data = await state.get_data()
+    date_str = data.get('slot_date')
+    
+    if not date_str:
+        await callback.message.edit_text("❌ Ошибка: дата не выбрана")
+        return
+    
+    admin_id = int(os.getenv("ADMIN_ID", "0"))
+    
+    # Сохраняем слот в БД
+    if DATABASE_URL:
+        success = await db.add_slot(date_str, time)
+    else:
+        success = db.add_slot(date_str, time)
+    
+    await state.clear()
+    
+    if success:
+        keyboard = [
+            [InlineKeyboardButton(text="🔄 Добавить еще слот", callback_data="admin_add_slot")],
+            [InlineKeyboardButton(text="📋 Список слотов", callback_data="admin_slots")],
+            [InlineKeyboardButton(text="◀️ В админ-панель", callback_data="admin_back")]
+        ]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        await callback.message.edit_text(
+            f"✅ Слот успешно добавлен!\n\n"
+            f"📅 Дата: {date_str}\n"
+            f"🕐 Время: {time}",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    else:
+        keyboard = [[InlineKeyboardButton(text="◀️ В админ-панель", callback_data="admin_back")]]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        await callback.message.edit_text(
+            "❌ Ошибка при добавлении слота.\n"
+            "Слот уже существует или произошла ошибка.",
+            reply_markup=reply_markup
+        )
+
+
+@dp.callback_query(lambda c: c.data == "select_all_times")
+async def handle_select_all_times(callback: CallbackQuery, state: FSMContext):
+    """Обработка добавления всех времен сразу"""
+    await callback.answer()
+    
+    data = await state.get_data()
+    date_str = data.get('slot_date')
+    
+    if not date_str:
+        await callback.message.edit_text("❌ Ошибка: дата не выбрана")
+        return
+    
+    # Добавляем все времена
+    times = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"]
+    added_count = 0
+    
+    for time in times:
+        if DATABASE_URL:
+            success = await db.add_slot(date_str, time)
+        else:
+            success = db.add_slot(date_str, time)
+        
+        if success:
+            added_count += 1
+    
+    await state.clear()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="🔄 Добавить еще день", callback_data="admin_add_slot")],
+        [InlineKeyboardButton(text="📋 Список слотов", callback_data="admin_slots")],
+        [InlineKeyboardButton(text="◀️ В админ-панель", callback_data="admin_back")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        f"✅ Добавлено слотов: {added_count} из {len(times)}\n\n"
+        f"📅 Дата: {date_str}\n"
+        f"🕐 Время: 10:00 - 19:00\n\n"
+        f"{'⚠️ Некоторые слоты уже существовали.' if added_count < len(times) else ''}",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
