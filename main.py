@@ -19,7 +19,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
     # Используем PostgreSQL (Railway)
-    from database_postgres import Database
+    from database_postgres_v2 import Database
 else:
     # Используем SQLite (fallback)
     from database import Database
@@ -68,20 +68,20 @@ async def cmd_start(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username or "Пользователь"
     
-    # Проверяем, существует ли пользователь (синхронная версия)
-    if not db.user_exists(user_id):
-        db.add_user(user_id, username)
-        await message.answer(
-            f"Привет! 👋 Добро пожаловать в *Твой Таролог*\n\n"
-            f"Я помогу тебе узнать будущее и получить духовное руководство. 🌙✨\n\n"
-            f"Выбери, на каком языке ты хочешь общаться:\n"
-            f"Choose your language:\n"
-            f"Pasirinkite kalbą:",
-            parse_mode="Markdown"
-        )
+    # Проверяем, существует ли пользователь (асинхронно)
+    if DATABASE_URL:
+        # PostgreSQL - используем async методы
+        if not await db.user_exists(user_id):
+            await db.add_user(user_id, username)
+        await db.update_last_activity(user_id)
     else:
+        # SQLite - используем синхронные методы
+        if not db.user_exists(user_id):
+            db.add_user(user_id, username)
         db.update_last_activity(user_id)
-        await show_main_menu(message)
+    
+    # Показываем главное меню
+    await show_main_menu(message)
 
 
 @dp.message(Command("menu"))
@@ -103,12 +103,23 @@ async def show_main_menu(message: types.Message):
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    await message.answer(
-        "🔮 *Твой Таролог*\n\n"
-        "Выбери интересующий раздел:",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    # Проверяем, это ответ на существующее сообщение или новое
+    try:
+        # Пробуем отредактировать существующее сообщение
+        await message.edit_text(
+            "🔮 *Твой Таролог*\n\n"
+            "Выбери интересующий раздел:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    except:
+        # Если редактирование не получилось - отправляем новое сообщение
+        await message.answer(
+            "🔮 *Твой Таролог*\n\n"
+            "Выбери интересующий раздел:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
 
 @dp.callback_query(lambda c: c.data == "daily_card")

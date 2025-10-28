@@ -104,18 +104,11 @@ class Database:
             
             logger.info("База данных PostgreSQL инициализирована")
     
-    def init_db(self):
-        """Синхронная версия инициализации"""
-        import asyncio
-        asyncio.run(self._init_db_async())
-    
-    async def _init_db_async(self):
-        """Асинхронная версия инициализации"""
-        await self.init_db()
+    # Убрали синхронные версии - всё асинхронно
     
     # Методы для пользователей
-    async def user_exists(self, user_id: int) -> bool:
-        """Проверить существование пользователя"""
+    async def user_exists_async(self, user_id: int) -> bool:
+        """Проверить существование пользователя (асинхронно)"""
         pool = await self.get_pool()
         if not pool:
             return False
@@ -128,11 +121,17 @@ class Database:
             return row is not None
     
     def user_exists(self, user_id: int) -> bool:
-        """Синхронная версия"""
-        import asyncio
-        return asyncio.run(self.user_exists(user_id))
+        """Синхронная версия для совместимости (использует созданный pool)"""
+        # Проверяем если pool уже создан
+        if self.pool:
+            import asyncio
+            try:
+                return asyncio.run(self.user_exists_async(user_id))
+            except:
+                return False
+        return False
     
-    async def add_user(self, user_id: int, username: str, name: str = None):
+    async def add_user_async(self, user_id: int, username: str, name: str = None):
         """Добавить пользователя"""
         pool = await self.get_pool()
         if not pool:
@@ -146,10 +145,14 @@ class Database:
     
     def add_user(self, user_id: int, username: str, name: str = None):
         """Синхронная версия"""
-        import asyncio
-        asyncio.run(self.add_user(user_id, username, name))
+        if self.pool:
+            import asyncio
+            try:
+                asyncio.run(self.add_user_async(user_id, username, name))
+            except:
+                pass
     
-    async def get_user(self, user_id: int) -> Optional[Dict]:
+    async def get_user_async(self, user_id: int) -> Optional[Dict]:
         """Получить пользователя"""
         pool = await self.get_pool()
         if not pool:
@@ -166,8 +169,13 @@ class Database:
     
     def get_user(self, user_id: int) -> Optional[Dict]:
         """Синхронная версия"""
-        import asyncio
-        return asyncio.run(self.get_user(user_id))
+        if self.pool:
+            import asyncio
+            try:
+                return asyncio.run(self.get_user_async(user_id))
+            except:
+                return None
+        return None
     
     async def update_user(self, user_id: int, **kwargs):
         """Обновить данные пользователя"""
@@ -204,7 +212,7 @@ class Database:
         asyncio.run(self.update_last_activity(user_id))
     
     # Методы для слотов
-    async def get_available_slots(self) -> List[Dict]:
+    async def get_available_slots_async(self) -> List[Dict]:
         """Получить доступные слоты"""
         pool = await self.get_pool()
         if not pool:
@@ -218,8 +226,13 @@ class Database:
     
     def get_available_slots(self) -> List[Dict]:
         """Синхронная версия"""
-        import asyncio
-        return asyncio.run(self.get_available_slots())
+        if self.pool:
+            import asyncio
+            try:
+                return asyncio.run(self.get_available_slots_async())
+            except:
+                return []
+        return []
     
     async def book_slot(self, user_id: int, slot_id: int, appointment_type: str):
         """Забронировать слот"""
