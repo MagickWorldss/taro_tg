@@ -749,6 +749,59 @@ async def handle_offline_appointment(callback: CallbackQuery):
     )
 
 
+@dp.callback_query(lambda c: c.data and c.data.startswith("slot_"))
+async def handle_slot_selection(callback: CallbackQuery):
+    """Обработка выбора слота"""
+    await callback.answer()
+    
+    # Получаем ID слота из callback_data
+    slot_id = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+    
+    # Бронируем слот
+    try:
+        if DATABASE_URL:
+            await db.book_slot(user_id, slot_id, "offline")
+            slot = await db.get_slot(slot_id)
+        else:
+            db.book_slot(user_id, slot_id, "offline")
+            slot = db.get_slot(slot_id)
+        
+        # Формируем подтверждение
+        keyboard = [
+            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        date_str = slot.get('date', 'Дата не указана')
+        time_str = slot.get('time', 'Время не указано')
+        
+        await callback.message.edit_text(
+            "✅ *Запись успешно оформлена!*\n\n"
+            f"📅 Дата: {date_str}\n"
+            f"🕐 Время: {time_str}\n\n"
+            "Вы получите напоминание за день до консультации.\n\n"
+            "Спасибо за доверие! 🙏",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка бронирования слота: {e}")
+        
+        keyboard = [
+            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        await callback.message.edit_text(
+            "❌ *Ошибка бронирования*\n\n"
+            "Не удалось забронировать выбранное время.\n"
+            "Попробуйте выбрать другое время или свяжитесь с администратором.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+
 def get_card_meaning(card, is_reversed):
     """Получить развернутое толкование карты"""
     if is_reversed:

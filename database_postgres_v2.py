@@ -181,6 +181,25 @@ class Database:
         except:
             return []
     
+    async def get_slot(self, slot_id: int) -> Optional[Dict]:
+        """Получить слот по ID"""
+        pool = await self.get_pool()
+        if not pool:
+            return None
+        
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT * FROM slots WHERE id = $1",
+                    slot_id
+                )
+                if row:
+                    return dict(row)
+        except Exception as e:
+            logger.error(f"Ошибка получения слота: {e}")
+        
+        return None
+    
     async def book_slot(self, user_id: int, slot_id: int, appointment_type: str):
         """Забронировать слот"""
         pool = await self.get_pool()

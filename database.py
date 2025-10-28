@@ -329,6 +329,34 @@ class Database:
         columns = ['id', 'date', 'time', 'is_booked', 'created_at']
         return [dict(zip(columns, row)) for row in rows]
     
+    async def get_slot(self, slot_id: int) -> Optional[Dict]:
+        """Получить слот по ID (async)"""
+        conn = await self.get_connection()
+        cursor = await conn.execute(
+            "SELECT * FROM slots WHERE id = ?",
+            (slot_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            columns = ['id', 'date', 'time', 'is_booked', 'created_at']
+            return dict(zip(columns, row))
+        return None
+    
+    def get_slot(self, slot_id: int) -> Optional[Dict]:
+        """Получить слот по ID (sync)"""
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT * FROM slots WHERE id = ?",
+            (slot_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            columns = ['id', 'date', 'time', 'is_booked', 'created_at']
+            return dict(zip(columns, row))
+        return None
+    
     async def book_slot(self, user_id: int, slot_id: int, appointment_type: str):
         """Забронировать слот"""
         conn = await self.get_connection()
@@ -341,6 +369,21 @@ class Database:
             (slot_id,)
         )
         await conn.commit()
+    
+    def book_slot(self, user_id: int, slot_id: int, appointment_type: str):
+        """Забронировать слот (sync)"""
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT INTO appointments (user_id, slot_id, appointment_type) VALUES (?, ?, ?)",
+            (user_id, slot_id, appointment_type)
+        )
+        conn.execute(
+            "UPDATE slots SET is_booked = 1 WHERE id = ?",
+            (slot_id,)
+        )
+        conn.commit()
+        conn.close()
     
     async def can_get_daily_card(self, user_id: int) -> bool:
         """Проверить, можно ли получить карту дня (прошло ли 24 часа)"""
