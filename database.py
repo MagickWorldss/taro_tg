@@ -1,8 +1,11 @@
 """
 Модуль для работы с базой данных
+Поддерживает PostgreSQL (Railway) и SQLite (fallback)
 """
 import aiosqlite
+import asyncpg
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 
@@ -15,6 +18,9 @@ class Database:
     def __init__(self, db_path="bot.db"):
         self.db_path = db_path
         self.conn = None
+        # Проверяем, используется ли PostgreSQL из Railway
+        self.database_url = os.getenv("DATABASE_URL", None)
+        self.use_postgres = self.database_url is not None
     
     async def get_connection(self):
         """Получить соединение с БД"""

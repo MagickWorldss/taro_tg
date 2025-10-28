@@ -11,9 +11,18 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 import os
-from database import Database
 from handlers import register_all_handlers
 from middleware import setup_middleware
+
+# Поддержка PostgreSQL и SQLite
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    # Используем PostgreSQL (Railway)
+    from database_postgres import Database
+else:
+    # Используем SQLite (fallback)
+    from database import Database
 
 # Настройка логирования
 logging.basicConfig(
@@ -22,6 +31,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Инициализируем БД ПОСЛЕ импорта модулей
+db = None  # Будет инициализирован позже
 
 # Получаем токен бота из переменных окружения
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -34,7 +46,10 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # Инициализация базы данных
-db = Database()
+if DATABASE_URL:
+    db = Database()  # PostgreSQL
+else:
+    db = Database()  # SQLite
 
 class TarotStates(StatesGroup):
     """Состояния для FSM"""
@@ -306,16 +321,36 @@ async def main():
     
     try:
         # Инициализация БД при первом запуске
-        import sqlite3
-        try:
-            # Проверяем, существует ли БД
-            conn = sqlite3.connect(db.db_path)
-            conn.close()
-            logger.info("База данных подключена")
-        except Exception:
-            # Создаем БД если ее нет
-            db.init_db()
-            logger.info("База данных создана")
+        if DATABASE_URL:
+            # PostgreSQL - инициализируем структуру
+            logger.info("Инициализация PostgreSQL...")
+            await db.init_db()
+            logger.info("PostgreSQL готов к работе")
+        else:
+            # SQLite - проверяем и создаем
+            import sqlite3
+            import os
+            
+            db_exists = os.path.exists(db.db_path)
+            
+            if not db_exists:
+                db.init_db()
+                logger.info("База данных SQLite создана")
+            else:
+                try:
+                    conn = sqlite3.connect(db.db_path)
+                    cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                    result = cursor.fetchone()
+                    conn.close()
+                    
+                    if not result:
+                        logger.info("База данных найдена, но таблиц нет. Создаем структуру...")
+                        db.init_db()
+                    else:
+                        logger.info("База данных подключена и структура существует")
+                except Exception as e:
+                    logger.warning(f"Ошибка проверки БД: {e}. Создаем заново...")
+                    db.init_db()
         
         # Запуск polling
         await dp.start_polling(bot)
