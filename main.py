@@ -847,6 +847,87 @@ def get_card_meaning(card, is_reversed):
         return f"{card.get('upright', 'Значение карты не определено')}"
 
 
+@dp.callback_query(lambda c: c.data == "admin_stats")
+async def handle_admin_stats(callback: CallbackQuery):
+    """Обработка кнопки Статистика"""
+    await callback.answer()
+    
+    if DATABASE_URL:
+        stats = await db.get_stats()
+    else:
+        stats = db.get_stats()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        f"📊 *Статистика*\n\n"
+        f"👥 Всего пользователей: {stats.get('total_users', 0)}\n"
+        f"✨ Активных сегодня: {stats.get('active_today', 0)}\n"
+        f"📅 Всего записей: {stats.get('total_appointments', 0)}\n"
+        f"✅ Активных записей: {stats.get('active_appointments', 0)}\n"
+        f"⏰ Доступных слотов: {stats.get('available_slots', 0)}\n"
+        f"📰 Новостей: {stats.get('total_news', 0)}",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data in ["admin_users", "admin_appointments", "admin_slots", "admin_news", "admin_add_slot"])
+async def handle_admin_placeholders(callback: CallbackQuery, state: FSMContext):
+    """Обработка заглушек для админ-панели"""
+    await callback.answer()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    text = "🚧 *Функция в разработке*\n\n"
+    
+    if callback.data == "admin_users":
+        text += "Список пользователей будет доступен в следующих версиях."
+    elif callback.data == "admin_appointments":
+        text += "Управление записями будет доступно в следующих версиях."
+    elif callback.data == "admin_slots":
+        text += "Управление слотами будет доступно в следующих версиях."
+    elif callback.data == "admin_news":
+        text += "Управление новостями будет доступно в следующих версиях."
+    elif callback.data == "admin_add_slot":
+        text += "Добавление слотов будет доступно в следующих версиях."
+    
+    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+
+
+@dp.callback_query(lambda c: c.data == "admin_back")
+async def handle_admin_back(callback: CallbackQuery):
+    """Возврат в админ-панель"""
+    await callback.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users")],
+        [InlineKeyboardButton(text="📅 Записи", callback_data="admin_appointments")],
+        [InlineKeyboardButton(text="⏰ Управление слотами", callback_data="admin_slots")],
+        [InlineKeyboardButton(text="➕ Добавить слот", callback_data="admin_add_slot")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    if DATABASE_URL:
+        stats = await db.get_stats()
+    else:
+        stats = db.get_stats()
+    
+    await callback.message.edit_text(
+        f"🔧 *Админ Панель*\n\n"
+        f"📊 Всего пользователей: {stats.get('total_users', 0)}\n"
+        f"📅 Активных записей: {stats.get('active_appointments', 0)}\n"
+        f"📰 Новостей: {stats.get('total_news', 0)}\n\n"
+        f"Выбери раздел:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
 def get_combined_reading(cards):
     """Получить комбинированное толкование для 3 карт"""
     # Здесь логика комбинации значений карт
