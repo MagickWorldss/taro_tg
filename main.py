@@ -765,16 +765,40 @@ async def handle_online_appointment(callback: CallbackQuery):
     """Обработка личного приема онлайн - открывает чат с админом"""
     await callback.answer()
     
-    admin_username = os.getenv("ADMIN_USERNAME", "admin")
-    admin_user_id = os.getenv("ADMIN_ID")
+    admin_user_id = os.getenv("ADMIN_ID", "0")
+    admin_username = os.getenv("ADMIN_USERNAME", "")
     
     keyboard = []
     
+    # Пытаемся получить username администратора
+    admin_link = None
+    
+    if admin_username and admin_username != "admin":
+        # Если есть username - используем его
+        admin_link = f"https://t.me/{admin_username}"
+    elif admin_user_id != "0":
+        # Если есть ID - используем t.me с числовым ID
+        admin_link = f"tg://user?id={admin_user_id}"
+    else:
+        # Если ничего нет - показываем обычное сообщение
+        keyboard.append([InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")])
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        
+        await callback.message.edit_text(
+            "💻 *Личный прием онлайн*\n\n"
+            "Напишите мне сообщение, и я вам отвечу.\n\n"
+            "Для связи найдите меня в поиске Telegram.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return
+    
     # Добавляем кнопку-ссылку на администратора
-    keyboard.append([InlineKeyboardButton(
-        text=f"💬 Написать {admin_username}",
-        url=f"https://t.me/{admin_username}"
-    )])
+    if admin_link:
+        keyboard.append([InlineKeyboardButton(
+            text="💬 Написать администратору",
+            url=admin_link
+        )])
     
     keyboard.append([InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")])
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -806,8 +830,7 @@ async def handle_offline_appointment(callback: CallbackQuery):
         await callback.message.edit_text(
             "📅 *Запись на личный прием*\n\n"
             "К сожалению, в данный момент нет доступных слотов для записи.\n"
-            "Попробуйте позже или свяжитесь с администратором.\n\n"
-            "Для быстрой связи напишите:\n@администратор",
+            "Попробуйте позже.",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
