@@ -109,17 +109,32 @@ async def cmd_start(message: types.Message, state: FSMContext):
     # Проверяем, существует ли пользователь (асинхронно)
     if DATABASE_URL:
         # PostgreSQL - используем async методы
-        if not await db.user_exists(user_id):
+        user_exists = await db.user_exists(user_id)
+        if not user_exists:
             await db.add_user(user_id, username)
+            # Новый пользователь - показываем выбор языка
+            await show_language_selection(message)
+        else:
+            # Существующий пользователь - проверяем язык
+            user = await db.get_user(user_id)
+            language = user.get('language', 'ru') if user else 'ru'
+            await db.update_last_activity(user_id)
+            # Показываем главное меню с сохраненным языком
+            await show_main_menu(message, language=language)
         await db.update_last_activity(user_id)
     else:
         # SQLite - используем синхронные методы
         if not db.user_exists(user_id):
             db.add_user(user_id, username)
+            # Новый пользователь - показываем выбор языка
+            await show_language_selection(message)
+        else:
+            # Существующий пользователь
+            user = db.get_user(user_id)
+            language = user.get('language', 'ru') if user else 'ru'
+            db.update_last_activity(user_id)
+            await show_main_menu(message, language=language)
         db.update_last_activity(user_id)
-    
-    # Показываем главное меню
-    await show_main_menu(message)
 
 
 @dp.message(Command("menu"))
@@ -128,14 +143,58 @@ async def cmd_menu(message: types.Message):
     await show_main_menu(message)
 
 
+@dp.callback_query(lambda c: c.data and c.data.startswith("lang_"))
+async def handle_language_selection(callback: CallbackQuery):
+    """Обработка выбора языка"""
+    await callback.answer()
+    
+    # Получаем код языка
+    language_code = callback.data.split("_")[-1]  # ru, en, lt, pl, es
+    user_id = callback.from_user.id
+    
+    # Сохраняем язык в БД
+    if DATABASE_URL:
+        await db.update_user(user_id, language=language_code)
+    else:
+        db.update_user(user_id, language=language_code)
+    
+    # Показываем главное меню
+    await show_main_menu(callback, language=language_code)
+
+
 @dp.callback_query(lambda c: c.data == "back_to_menu")
 async def handle_back_to_menu(callback: CallbackQuery):
     """Обработка кнопки 'Назад в меню'"""
     await callback.answer()
-    await show_main_menu(callback)
+    
+    # Получаем язык пользователя из БД
+    user_id = callback.from_user.id
+    if DATABASE_URL:
+        user = await db.get_user(user_id)
+    else:
+        user = db.get_user(user_id)
+    
+    language = user.get('language', 'ru') if user else 'ru'
+    await show_main_menu(callback, language=language)
 
 
-async def show_main_menu(message_or_callback):
+async def show_language_selection(message: types.Message):
+    """Показывает выбор языка для нового пользователя"""
+    keyboard = [
+        [InlineKeyboardButton(text="Русский", callback_data="lang_ru")],
+        [InlineKeyboardButton(text="English", callback_data="lang_en")],
+        [InlineKeyboardButton(text="Lietuvių", callback_data="lang_lt")],
+        [InlineKeyboardButton(text="Polski", callback_data="lang_pl")],
+        [InlineKeyboardButton(text="Español", callback_data="lang_es")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    text = "🌍 *Выберите язык / Choose language / Pasirinkite kalbą*\n\nПожалуйста, выберите предпочитаемый язык интерфейса."
+    
+    await message.answer(text, reply_markup=reply_markup, parse_mode="Markdown")
+
+
+async def show_main_menu(message_or_callback, language='ru'):
     """Показывает главное меню"""
     keyboard = [
         [InlineKeyboardButton(text="🌙 Карта дня", callback_data="daily_card")],
@@ -459,12 +518,36 @@ async def handle_profile(callback: CallbackQuery):
         text = "Профиль не найден. Данные еще не заполнены."
     
     keyboard = [
+        [InlineKeyboardButton(text="🌍 Изменить язык", callback_data="change_language")],
         [InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")],
         [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     await callback.message.edit_text(text, reply_markup=reply_markup)
+
+
+@dp.callback_query(lambda c: c.data == "change_language")
+async def handle_change_language(callback: CallbackQuery):
+    """Обработка смены языка"""
+    await callback.answer()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="Русский", callback_data="lang_ru")],
+        [InlineKeyboardButton(text="English", callback_data="lang_en")],
+        [InlineKeyboardButton(text="Lietuvių", callback_data="lang_lt")],
+        [InlineKeyboardButton(text="Polski", callback_data="lang_pl")],
+        [InlineKeyboardButton(text="Español", callback_data="lang_es")],
+        [InlineKeyboardButton(text="◀️ Назад к профилю", callback_data="profile")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "🌍 *Выбор языка*\n\n"
+        "Выберите язык интерфейса:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
 
 
 @dp.callback_query(lambda c: c.data == "edit_profile")
