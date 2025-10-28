@@ -267,6 +267,21 @@ class Database:
             return dict(zip(columns, row))
         return None
     
+    def update_user(self, user_id: int, **kwargs):
+        """Синхронная версия обновления пользователя"""
+        if not kwargs:
+            return
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        values = list(kwargs.values()) + [user_id]
+        conn.execute(
+            f"UPDATE users SET {set_clause} WHERE user_id = ?",
+            values
+        )
+        conn.commit()
+        conn.close()
+    
     async def update_user(self, user_id: int, **kwargs):
         """Обновить данные пользователя"""
         conn = await self.get_connection()

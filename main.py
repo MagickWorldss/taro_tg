@@ -451,6 +451,186 @@ async def handle_edit_profile(callback: CallbackQuery):
     )
 
 
+@dp.callback_query(lambda c: c.data == "edit_name")
+async def handle_edit_name(callback: CallbackQuery, state: FSMContext):
+    """Обработка редактирования имени"""
+    await callback.answer()
+    await state.set_state(TarotStates.waiting_for_name)
+    
+    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_edit")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "📝 *Введи свое имя*\n\n"
+        "Отправь новое имя или нажми Отмена:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "edit_birth_date")
+async def handle_edit_birth_date(callback: CallbackQuery, state: FSMContext):
+    """Обработка редактирования даты рождения"""
+    await callback.answer()
+    await state.set_state(TarotStates.waiting_for_birth_date)
+    
+    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_edit")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "📅 *Введи дату рождения*\n\n"
+        "Формат: ДД.ММ.ГГГГ (например, 15.03.1990)\n"
+        "Или нажми Отмена:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "edit_birth_time")
+async def handle_edit_birth_time(callback: CallbackQuery, state: FSMContext):
+    """Обработка редактирования времени рождения"""
+    await callback.answer()
+    await state.set_state(TarotStates.waiting_for_birth_time)
+    
+    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_edit")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "🕐 *Введи время рождения*\n\n"
+        "Формат: ЧЧ:ММ (например, 14:30)\n"
+        "Или нажми Отмена:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "edit_birth_place")
+async def handle_edit_birth_place(callback: CallbackQuery, state: FSMContext):
+    """Обработка редактирования места рождения"""
+    await callback.answer()
+    await state.set_state(TarotStates.waiting_for_birth_place)
+    
+    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_edit")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "📍 *Введи место рождения*\n\n"
+        "Например: Москва, Россия\n"
+        "Или нажми Отмена:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "cancel_edit")
+async def handle_cancel_edit(callback: CallbackQuery, state: FSMContext):
+    """Обработка отмены редактирования"""
+    await callback.answer()
+    await state.clear()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "❌ Редактирование отменено",
+        reply_markup=reply_markup
+    )
+
+
+# Обработчики для получения текста от пользователя
+@dp.message(TarotStates.waiting_for_name)
+async def process_name(message: types.Message, state: FSMContext):
+    """Обработка введенного имени"""
+    name = message.text
+    
+    # Сохраняем в БД
+    if DATABASE_URL:
+        await db.update_user(message.from_user.id, name=name)
+    else:
+        db.update_user(message.from_user.id, name=name)
+    
+    await state.clear()
+    
+    keyboard = [
+        [InlineKeyboardButton(text="◀️ К профилю", callback_data="profile")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await message.answer(
+        f"✅ Имя обновлено: {name}",
+        reply_markup=reply_markup
+    )
+
+
+@dp.message(TarotStates.waiting_for_birth_date)
+async def process_birth_date(message: types.Message, state: FSMContext):
+    """Обработка введенной даты рождения"""
+    birth_date = message.text
+    
+    # Сохраняем в БД
+    if DATABASE_URL:
+        await db.update_user(message.from_user.id, birth_date=birth_date)
+    else:
+        db.update_user(message.from_user.id, birth_date=birth_date)
+    
+    await state.clear()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ К профилю", callback_data="profile")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await message.answer(
+        f"✅ Дата рождения обновлена: {birth_date}",
+        reply_markup=reply_markup
+    )
+
+
+@dp.message(TarotStates.waiting_for_birth_time)
+async def process_birth_time(message: types.Message, state: FSMContext):
+    """Обработка введенного времени рождения"""
+    birth_time = message.text
+    
+    # Сохраняем в БД
+    if DATABASE_URL:
+        await db.update_user(message.from_user.id, birth_time=birth_time)
+    else:
+        db.update_user(message.from_user.id, birth_time=birth_time)
+    
+    await state.clear()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ К профилю", callback_data="profile")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await message.answer(
+        f"✅ Время рождения обновлено: {birth_time}",
+        reply_markup=reply_markup
+    )
+
+
+@dp.message(TarotStates.waiting_for_birth_place)
+async def process_birth_place(message: types.Message, state: FSMContext):
+    """Обработка введенного места рождения"""
+    birth_place = message.text
+    
+    # Сохраняем в БД
+    if DATABASE_URL:
+        await db.update_user(message.from_user.id, birth_place=birth_place)
+    else:
+        db.update_user(message.from_user.id, birth_place=birth_place)
+    
+    await state.clear()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ К профилю", callback_data="profile")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await message.answer(
+        f"✅ Место рождения обновлено: {birth_place}",
+        reply_markup=reply_markup
+    )
+
+
 @dp.callback_query(lambda c: c.data == "bonus")
 async def handle_bonus(callback: CallbackQuery):
     """Обработка раздела Бонус"""
