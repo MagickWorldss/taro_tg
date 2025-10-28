@@ -267,8 +267,21 @@ class Database:
             return dict(zip(columns, row))
         return None
     
+    async def update_user(self, user_id: int, **kwargs):
+        """Обновить данные пользователя (async)"""
+        if not kwargs:
+            return
+        conn = await self.get_connection()
+        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        values = list(kwargs.values()) + [user_id]
+        await conn.execute(
+            f"UPDATE users SET {set_clause} WHERE user_id = ?",
+            values
+        )
+        await conn.commit()
+    
     def update_user(self, user_id: int, **kwargs):
-        """Синхронная версия обновления пользователя"""
+        """Обновить данные пользователя (sync)"""
         if not kwargs:
             return
         import sqlite3
@@ -281,17 +294,6 @@ class Database:
         )
         conn.commit()
         conn.close()
-    
-    async def update_user(self, user_id: int, **kwargs):
-        """Обновить данные пользователя"""
-        conn = await self.get_connection()
-        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
-        values = list(kwargs.values()) + [user_id]
-        await conn.execute(
-            f"UPDATE users SET {set_clause} WHERE user_id = ?",
-            values
-        )
-        await conn.commit()
     
     def update_last_activity(self, user_id: int):
         """Обновить время последней активности (синхронная версия)"""
