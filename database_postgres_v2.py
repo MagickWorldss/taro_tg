@@ -50,7 +50,9 @@ class Database:
                     rating INTEGER DEFAULT 0,
                     language TEXT DEFAULT 'ru',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_daily_card TIMESTAMP,
+                    daily_card_data TEXT
                 )
             """)
             
@@ -175,6 +177,72 @@ class Database:
                     )
         except Exception as e:
             logger.error(f"Ошибка бронирования слота: {e}")
+    
+    async def can_get_daily_card(self, user_id: int) -> bool:
+        """Проверить, можно ли получить карту дня (прошло ли 24 часа)"""
+        pool = await self.get_pool()
+        if not pool:
+            return True
+        
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT last_daily_card FROM users WHERE user_id = $1",
+                    user_id
+                )
+                
+                if not row or not row['last_daily_card']:
+                    return True
+                
+                # Проверяем, прошло ли 24 часа
+                from datetime import datetime, timedelta
+                last_card_time = row['last_daily_card']
+                if isinstance(last_card_time, str):
+                    last_card_time = datetime.fromisoformat(last_card_time)
+                
+                time_diff = datetime.now() - last_card_time
+                return time_diff >= timedelta(hours=24)
+        except Exception as e:
+            logger.error(f"Ошибка проверки карты дня: {e}")
+            return True
+    
+    async def get_daily_card_data(self, user_id: int):
+        """Получить сохраненные данные карты дня"""
+        pool = await self.get_pool()
+        if not pool:
+            return None
+        
+        try:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT daily_card_data FROM users WHERE user_id = $1",
+                    user_id
+                )
+                
+                if row and row['daily_card_data']:
+                    import json
+                    return json.loads(row['daily_card_data'])
+                return None
+        except Exception as e:
+            logger.error(f"Ошибка получения карты дня: {e}")
+            return None
+    
+    async def save_daily_card(self, user_id: int, card_data: dict):
+        """Сохранить данные карты дня пользователя"""
+        pool = await self.get_pool()
+        if not pool:
+            return
+        
+        try:
+            import json
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE users SET last_daily_card = CURRENT_TIMESTAMP, daily_card_data = $1 WHERE user_id = $2",
+                    json.dumps(card_data),
+                    user_id
+                )
+        except Exception as e:
+            logger.error(f"Ошибка сохранения карты дня: {e}")
     
     def close(self):
         """Закрыть соединение с БД"""

@@ -419,14 +419,42 @@ TAROT_CARDS = {
 }
 
 
-def get_daily_card() -> Tuple[Dict, bool]:
+def get_daily_card(user_id: int = None, seed: str = None) -> Tuple[Dict, bool]:
     """
-    Получить карту дня
-    Возвращает (карта, перевернута_ли)
+    Получить карту дня для конкретного пользователя
+    Каждый пользователь получает одну и ту же карту в течение дня
+    
+    Args:
+        user_id: ID пользователя для генерации уникальной карты
+        seed: Необязательная строка для генерации (по умолчанию используется дата)
+    
+    Returns:
+        (карта, перевернута_ли)
     """
-    card_name = random.choice(list(TAROT_CARDS.keys()))
+    import hashlib
+    from datetime import datetime
+    
+    # Генерируем seed на основе даты и user_id для уникальности карты
+    today = datetime.now().strftime('%Y-%m-%d')
+    
+    if user_id:
+        seed_string = f"{today}_{user_id}"
+    elif seed:
+        seed_string = f"{today}_{seed}"
+    else:
+        seed_string = today
+    
+    # Создаем детерминированный RNG на основе seed
+    hash_obj = hashlib.md5(seed_string.encode())
+    random_seed = int(hash_obj.hexdigest(), 16)
+    local_random = random.Random(random_seed)
+    
+    # Выбираем карту детерминированно
+    card_name = local_random.choice(list(TAROT_CARDS.keys()))
     card = TAROT_CARDS[card_name]
-    is_reversed = random.random() < 0.3  # 30% шанс перевернутой карты
+    
+    # 30% шанс перевернутой карты
+    is_reversed = local_random.random() < 0.3
     
     return card, is_reversed
 

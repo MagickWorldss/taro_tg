@@ -124,9 +124,22 @@ class Database:
                     rating INTEGER DEFAULT 0,
                     language TEXT DEFAULT 'ru',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_daily_card TIMESTAMP,
+                    daily_card_data TEXT
                 )
             """)
+            
+            # Добавляем новые поля если таблица уже существует
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN last_daily_card TIMESTAMP")
+            except sqlite3.OperationalError:
+                pass  # Колонка уже существует
+            
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN daily_card_data TEXT")
+            except sqlite3.OperationalError:
+                pass  # Колонка уже существует
             
             # Таблица записей на прием
             conn.execute("""
@@ -311,6 +324,96 @@ class Database:
             (slot_id,)
         )
         await conn.commit()
+    
+    async def can_get_daily_card(self, user_id: int) -> bool:
+        """Проверить, можно ли получить карту дня (прошло ли 24 часа)"""
+        conn = await self.get_connection()
+        cursor = await conn.execute(
+            "SELECT last_daily_card FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        
+        if not row or not row[0]:
+            return True
+        
+        # Проверяем, прошло ли 24 часа
+        last_card_time = datetime.fromisoformat(row[0])
+        time_diff = datetime.now() - last_card_time
+        return time_diff >= timedelta(hours=24)
+    
+    def can_get_daily_card(self, user_id: int) -> bool:
+        """Синхронная версия"""
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT last_daily_card FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        
+        if not row or not row[0]:
+            conn.close()
+            return True
+        
+        # Проверяем, прошло ли 24 часа
+        last_card_time = datetime.fromisoformat(row[0])
+        time_diff = datetime.now() - last_card_time
+        result = time_diff >= timedelta(hours=24)
+        conn.close()
+        return result
+    
+    async def get_daily_card_data(self, user_id: int):
+        """Получить сохраненные данные карты дня"""
+        import json
+        conn = await self.get_connection()
+        cursor = await conn.execute(
+            "SELECT daily_card_data FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        
+        if row and row[0]:
+            return json.loads(row[0])
+        return None
+    
+    def get_daily_card_data(self, user_id: int):
+        """Синхронная версия"""
+        import sqlite3
+        import json
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT daily_card_data FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        
+        if row and row[0]:
+            return json.loads(row[0])
+        conn.close()
+        return None
+    
+    async def save_daily_card(self, user_id: int, card_data: dict):
+        """Сохранить данные карты дня пользователя"""
+        import json
+        conn = await self.get_connection()
+        await conn.execute(
+            "UPDATE users SET last_daily_card = ?, daily_card_data = ? WHERE user_id = ?",
+            (datetime.now().isoformat(), json.dumps(card_data), user_id)
+        )
+        await conn.commit()
+    
+    def save_daily_card(self, user_id: int, card_data: dict):
+        """Синхронная версия"""
+        import sqlite3
+        import json
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE users SET last_daily_card = ?, daily_card_data = ? WHERE user_id = ?",
+            (datetime.now().isoformat(), json.dumps(card_data), user_id)
+        )
+        conn.commit()
+        conn.close()
     
     def close(self):
         """Закрыть соединение с БД"""

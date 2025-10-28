@@ -142,13 +142,69 @@ async def show_main_menu(message_or_callback):
 @dp.callback_query(lambda c: c.data == "daily_card")
 async def handle_daily_card(callback: CallbackQuery):
     """Обработка карты дня"""
-    from tarot_cards import get_daily_card
+    from tarot_cards import get_daily_card, get_card_meaning
     from tarot_images import get_card_full_info, get_tarot_image_from_api
+    from datetime import datetime, timedelta
     
     await callback.answer()
     
-    card, is_reversed = get_daily_card()
-    interpretation = get_card_meaning(card, is_reversed)
+    user_id = callback.from_user.id
+    
+    # Проверяем, можно ли получить карту дня
+    if DATABASE_URL:
+        can_get = await db.can_get_daily_card(user_id)
+        
+        if not can_get:
+            # Пытаемся получить сохраненную карту
+            saved_card_data = await db.get_daily_card_data(user_id)
+            
+            if saved_card_data:
+                card = saved_card_data
+                is_reversed = saved_card_data.get('is_reversed', False)
+                interpretation = get_card_meaning(card, is_reversed)
+            else:
+                # Не можем получить карту и нет сохраненной - показываем ошибку
+                keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+                reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+                await callback.message.edit_text(
+                    "⏰ Ты уже получил карту дня! Следующая карта будет доступна через 24 часа.",
+                    reply_markup=reply_markup
+                )
+                return
+            
+            # Получаем тайминг следующей карты
+            try:
+                row = await db.get_user(user_id)
+                if row and row.get('last_daily_card'):
+                    last_time = row['last_daily_card']
+                    if isinstance(last_time, str):
+                        last_time = datetime.fromisoformat(last_time)
+                    next_time = last_time + timedelta(hours=24)
+                    hours_left = (next_time - datetime.now()).total_seconds() / 3600
+                    hours_left = max(0, int(hours_left))
+                else:
+                    hours_left = 24
+            except:
+                hours_left = 24
+        else:
+            # Можно получить новую карту
+            card, is_reversed = get_daily_card(user_id=user_id)
+            interpretation = get_card_meaning(card, is_reversed)
+            
+            # Сохраняем данные карты
+            await db.save_daily_card(user_id, {
+                'name': card['name'],
+                'upright': card.get('upright', ''),
+                'reversed': card.get('reversed', ''),
+                'is_reversed': is_reversed
+            })
+            
+            hours_left = 24
+    else:
+        # Для SQLite без проверки времени
+        card, is_reversed = get_daily_card(user_id=user_id)
+        interpretation = get_card_meaning(card, is_reversed)
+        hours_left = 24
     
     # Получаем визуализацию карты
     card_visual = get_card_full_info(card, is_reversed)
@@ -163,12 +219,20 @@ async def handle_daily_card(callback: CallbackQuery):
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
+    # Формируем сообщение о времени до следующей карты
+    if hours_left == 24:
+        time_text = "_Следующая карта будет доступна завтра_"
+    elif hours_left > 0:
+        time_text = f"_Следующая карта будет доступна через {hours_left} час(ов)_"
+    else:
+        time_text = "_Следующая карта доступна!_"
+    
     text = (
         f"🌙 *Твоя карта дня*\n\n"
         f"*{card['name']}*\n"
         f"Позиция: {status_text}\n\n"
         f"*Толкование:*\n{interpretation}\n\n"
-        f"_Следующая карта будет доступна через 24 часа_"
+        f"{time_text}"
     )
     
     # Если есть изображение - отправляем фото
