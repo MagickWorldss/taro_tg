@@ -873,28 +873,106 @@ async def handle_admin_stats(callback: CallbackQuery):
     )
 
 
-@dp.callback_query(lambda c: c.data in ["admin_users", "admin_appointments", "admin_slots", "admin_news", "admin_add_slot"])
-async def handle_admin_placeholders(callback: CallbackQuery, state: FSMContext):
-    """Обработка заглушек для админ-панели"""
+@dp.callback_query(lambda c: c.data == "admin_users")
+async def handle_admin_users(callback: CallbackQuery):
+    """Обработка кнопки Пользователи"""
     await callback.answer()
     
     keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    text = "🚧 *Функция в разработке*\n\n"
+    await callback.message.edit_text(
+        "👥 *Пользователи*\n\n"
+        "Для просмотра списка пользователей используйте SQL запросы в базе данных.\n"
+        "Таблица: users\n\n"
+        "В будущих версиях здесь будет отображаться полный список пользователей.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "admin_appointments")
+async def handle_admin_appointments(callback: CallbackQuery):
+    """Обработка кнопки Записи"""
+    await callback.answer()
     
-    if callback.data == "admin_users":
-        text += "Список пользователей будет доступен в следующих версиях."
-    elif callback.data == "admin_appointments":
-        text += "Управление записями будет доступно в следующих версиях."
-    elif callback.data == "admin_slots":
-        text += "Управление слотами будет доступно в следующих версиях."
-    elif callback.data == "admin_news":
-        text += "Управление новостями будет доступно в следующих версиях."
-    elif callback.data == "admin_add_slot":
-        text += "Добавление слотов будет доступно в следующих версиях."
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    await callback.message.edit_text(
+        "📅 *Записи на прием*\n\n"
+        "Для просмотра записей используйте SQL запросы в базе данных.\n"
+        "Таблица: appointments\n\n"
+        "В будущих версиях здесь будет отображаться список всех записей.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "admin_slots")
+async def handle_admin_slots(callback: CallbackQuery):
+    """Обработка кнопки Управление слотами"""
+    await callback.answer()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    if DATABASE_URL:
+        stats = await db.get_stats()
+    else:
+        stats = db.get_stats()
+    
+    await callback.message.edit_text(
+        "⏰ *Управление слотами*\n\n"
+        f"📊 Доступных слотов: {stats.get('available_slots', 0)}\n"
+        f"📅 Всего записей: {stats.get('total_appointments', 0)}\n\n"
+        "Для управления слотами используйте команды:\n"
+        "- /admin_add_slot - добавить слот\n\n"
+        "В будущих версиях здесь будет полное управление слотами.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "admin_add_slot")
+async def handle_admin_add_slot(callback: CallbackQuery):
+    """Обработка кнопки Добавить слот"""
+    await callback.answer()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "➕ *Добавить слот*\n\n"
+        "Для добавления слотов используйте SQL запросы:\n\n"
+        "```sql\n"
+        "INSERT INTO slots (date, time, is_booked)\n"
+        "VALUES ('29.10.2025', '14:00', FALSE);\n"
+        "```\n\n"
+        "В будущих версиях здесь будет форма добавления слотов.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(lambda c: c.data == "admin_news")
+async def handle_admin_news(callback: CallbackQuery):
+    """Обработка кнопки Новости"""
+    await callback.answer()
+    
+    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    await callback.message.edit_text(
+        "📰 *Управление новостями*\n\n"
+        "🚧 Функция в разработке.\n\n"
+        "В следующих версиях здесь будет возможность:\n"
+        "- Создавать новости\n"
+        "- Редактировать новости\n"
+        "- Удалять новости",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
 
 
 @dp.callback_query(lambda c: c.data == "admin_back")
