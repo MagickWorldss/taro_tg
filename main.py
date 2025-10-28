@@ -765,29 +765,27 @@ async def handle_online_appointment(callback: CallbackQuery):
     """Обработка личного приема онлайн - открывает чат с админом"""
     await callback.answer()
     
-    admin_id = os.getenv("ADMIN_ID")
-    keyboard = [
-        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
-    ]
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    admin_user_id = os.getenv("ADMIN_ID")
+    
+    keyboard = []
+    
+    # Добавляем кнопку-ссылку на администратора
+    keyboard.append([InlineKeyboardButton(
+        text=f"💬 Написать {admin_username}",
+        url=f"https://t.me/{admin_username}"
+    )])
+    
+    keyboard.append([InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")])
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    if admin_id:
-        await callback.message.edit_text(
-            "💻 *Личный прием онлайн*\n\n"
-            "Для записи на онлайн консультацию напишите напрямую:\n"
-            f"👤 @{os.getenv('ADMIN_USERNAME', 'admin')}\n\n"
-            "Или нажмите кнопку ниже для быстрого перехода:",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-    else:
-        await callback.message.edit_text(
-            "💻 *Личный прием онлайн*\n\n"
-            "Для записи на онлайн консультацию напишите напрямую администратору.\n\n"
-            "Мы свяжемся с вами в ближайшее время.",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
+    await callback.message.edit_text(
+        "💻 *Личный прием онлайн*\n\n"
+        "Напишите мне сообщение, и я вам отвечу.\n\n"
+        "Нажмите кнопку ниже, чтобы открыть чат со мной:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
 
 
 @dp.callback_query(lambda c: c.data == "appointment_offline")
