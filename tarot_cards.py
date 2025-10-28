@@ -459,6 +459,14 @@ def get_daily_card(user_id: int = None, seed: str = None) -> Tuple[Dict, bool]:
     return card, is_reversed
 
 
+def get_card_meaning(card, is_reversed):
+    """Получить развернутое толкование карты"""
+    if is_reversed:
+        return card.get('reversed', 'Значение перевернутой карты не определено')
+    else:
+        return card.get('upright', 'Значение карты не определено')
+
+
 def get_three_card_reading() -> List[Tuple[Dict, bool]]:
     """
     Получить расклад на 3 карты
