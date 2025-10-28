@@ -288,8 +288,8 @@ async def handle_daily_card(callback: CallbackQuery):
 @dp.callback_query(lambda c: c.data == "general_reading")
 async def handle_general_reading(callback: CallbackQuery):
     """Обработка общего расклада на 3 карты"""
-    from tarot_cards import get_three_card_reading
-    from tarot_images import get_card_image_url
+    from tarot_cards import get_three_card_reading, get_card_meaning
+    from tarot_images import get_tarot_image_from_api
     
     await callback.answer()
     
@@ -297,13 +297,84 @@ async def handle_general_reading(callback: CallbackQuery):
     interpretation = get_combined_reading(cards)
     
     positions = ["Прошлое", "Настоящее", "Будущее"]
-    cards_text = ""
     
+    # Собираем изображения для медиа-группы
+    from aiogram.types import InputMediaPhoto, BufferedInputFile
+    import aiohttp
+    from PIL import Image
+    import io
+    
+    media_group = []
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            for i, (card, is_reversed) in enumerate(cards):
+                position = positions[i] if i < len(positions) else f"Позиция {i+1}"
+                status = "🔴 ПЕРЕВЕРНУТА" if is_reversed else "🟢 ПРЯМАЯ"
+                
+                # Получаем URL изображения
+                image_url = await get_tarot_image_from_api(card["name"])
+                
+                if image_url:
+                    async with session.get(image_url) as response:
+                        if response.status == 200:
+                            image_bytes = await response.read()
+                            
+                            # Если карта перевернута - поворачиваем
+                            if is_reversed:
+                                img = Image.open(io.BytesIO(image_bytes))
+                                img_rotated = img.rotate(180)
+                                output = io.BytesIO()
+                                img_rotated.save(output, format='JPEG')
+                                image_bytes = output.getvalue()
+                            
+                            # Формируем caption для карты
+                            caption = f"*{card['name']}*\n{status}\n📍 {position}"
+                            
+                            # Создаем фото для медиа-группы
+                            photo = BufferedInputFile(
+                                file=image_bytes,
+                                filename=f"{card['name']}.jpg"
+                            )
+                            
+                            media_group.append(
+                                InputMediaPhoto(
+                                    media=photo,
+                                    caption=caption,
+                                    parse_mode="Markdown"
+                                )
+                            )
+        # Отправляем медиа-группу
+        if media_group:
+            # Последнее фото без caption (чтобы добавить толкование отдельным сообщением)
+            # Удаляем caption с последнего, чтобы добавить его отдельным сообщением
+            caption_text = (
+                f"🔮 *Общий расклад на 3 карты*\n\n"
+                f"*Комбинированное толкование:*\n\n{interpretation}"
+            )
+            
+            keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+            
+            # Отправляем медиа-группу
+            await callback.message.answer_media_group(media=media_group)
+            
+            # Отправляем толкование отдельным сообщением с кнопкой
+            await callback.message.answer(
+                caption_text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+            return
+    except Exception as e:
+        logger.error(f"Ошибка отправки расклада: {e}")
+    
+    # Fallback - отправляем текстом если что-то пошло не так
+    cards_text = ""
     for i, (card, is_reversed) in enumerate(cards, 1):
         position = positions[i-1] if i <= len(positions) else f"Позиция {i}"
         status = "перевернута" if is_reversed else "прямая"
-        emoji = get_card_image_url(card['name'], is_reversed)
-        cards_text += f"{emoji} {i}. *{card['name']}* ({status})\n📍 {position}\n\n"
+        cards_text += f"{i}. *{card['name']}* ({status})\n📍 {position}\n\n"
     
     keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
