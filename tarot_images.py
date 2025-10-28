@@ -48,25 +48,27 @@ CARD_NAME_MAPPING = {
 
 async def get_tarot_image_from_api(card_name: str) -> Optional[str]:
     """
-    Получить путь к изображению карты из локальных файлов
+    Получить URL изображения карты с GitHub
     """
     try:
-        from card_image_mapping import get_card_image_path, CARD_TO_IMAGE_PATH
+        from card_image_mapping import get_card_image_path
         
-        # Проверяем локальные файлы
-        image_path = get_card_image_path(card_name)
+        # Получаем GitHub URL для карты
+        image_url = get_card_image_path(card_name)
         
-        if image_path and os.path.exists(image_path):
-            logger.info(f"Локальное изображение найдено: {card_name}")
-            return image_path
+        if image_url:
+            logger.info(f"✅ Изображение найдено: {card_name} → {image_url}")
+            return image_url
         
-        # Проверяем есть ли в словаре (если загружены на GitHub)
+        # Проверяем есть ли в словаре (fallback)
         if card_name in TAROT_IMAGE_URLS and TAROT_IMAGE_URLS[card_name]:
+            logger.info(f"✅ URL изображения из словаря: {card_name}")
             return TAROT_IMAGE_URLS[card_name]
         
+        logger.debug(f"⚠️ Изображение не найдено для {card_name}")
         return None
     except Exception as e:
-        logger.debug(f"Изображение не найдено для {card_name}: {e}")
+        logger.error(f"❌ Ошибка при поиске изображения {card_name}: {e}")
         return None
 
 
