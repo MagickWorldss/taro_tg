@@ -62,6 +62,43 @@ class TarotStates(StatesGroup):
     waiting_for_payment = State()
 
 
+@dp.message(Command("admin"))
+async def cmd_admin(message: types.Message):
+    """Обработчик команды /admin"""
+    admin_id = int(os.getenv("ADMIN_ID", "0"))
+    
+    if message.from_user.id != admin_id:
+        await message.answer("❌ У вас нет прав для выполнения этой команды")
+        return
+    
+    # Показываем админ панель
+    keyboard = [
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="👥 Пользователи", callback_data="admin_users")],
+        [InlineKeyboardButton(text="📅 Записи", callback_data="admin_appointments")],
+        [InlineKeyboardButton(text="⏰ Управление слотами", callback_data="admin_slots")],
+        [InlineKeyboardButton(text="➕ Добавить слот", callback_data="admin_add_slot")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+    
+    # Получаем статистику
+    if DATABASE_URL:
+        stats = await db.get_stats()
+    else:
+        stats = db.get_stats()
+    
+    await message.answer(
+        f"🔧 *Админ Панель*\n\n"
+        f"📊 Всего пользователей: {stats.get('total_users', 0)}\n"
+        f"📅 Активных записей: {stats.get('active_appointments', 0)}\n"
+        f"📰 Новостей: {stats.get('total_news', 0)}\n\n"
+        f"Выбери раздел:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     """Обработчик команды /start"""

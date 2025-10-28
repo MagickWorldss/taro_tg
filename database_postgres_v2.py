@@ -286,6 +286,64 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка сохранения карты дня: {e}")
     
+    async def get_stats(self) -> Dict:
+        """Получить статистику"""
+        pool = await self.get_pool()
+        if not pool:
+            return {
+                'total_users': 0,
+                'active_today': 0,
+                'total_appointments': 0,
+                'available_slots': 0,
+                'total_news': 0,
+                'active_appointments': 0
+            }
+        
+        try:
+            async with pool.acquire() as conn:
+                # Всего пользователей
+                total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+                
+                # Активных сегодня
+                active_today = await conn.fetchval(
+                    "SELECT COUNT(*) FROM users WHERE DATE(last_activity) = CURRENT_DATE"
+                )
+                
+                # Всего записей
+                total_appointments = await conn.fetchval("SELECT COUNT(*) FROM appointments")
+                
+                # Доступных слотов
+                available_slots = await conn.fetchval(
+                    "SELECT COUNT(*) FROM slots WHERE is_booked = FALSE"
+                )
+                
+                # Новостей
+                total_news = await conn.fetchval("SELECT COUNT(*) FROM news")
+                
+                # Активных записей
+                active_appointments = await conn.fetchval(
+                    "SELECT COUNT(*) FROM appointments WHERE status = 'pending'"
+                )
+                
+                return {
+                    'total_users': total_users or 0,
+                    'active_today': active_today or 0,
+                    'total_appointments': total_appointments or 0,
+                    'available_slots': available_slots or 0,
+                    'total_news': total_news or 0,
+                    'active_appointments': active_appointments or 0
+                }
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики: {e}")
+            return {
+                'total_users': 0,
+                'active_today': 0,
+                'total_appointments': 0,
+                'available_slots': 0,
+                'total_news': 0,
+                'active_appointments': 0
+            }
+    
     def close(self):
         """Закрыть соединение с БД"""
         if self.pool:
