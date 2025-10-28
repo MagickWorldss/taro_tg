@@ -378,6 +378,81 @@ class Database:
                 'active_appointments': 0
             }
     
+    async def get_all_users(self, limit: int = 20):
+        """Получить всех пользователей"""
+        pool = await self.get_pool()
+        if not pool:
+            return []
+        
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT * FROM users ORDER BY created_at DESC LIMIT $1",
+                    limit
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователей: {e}")
+            return []
+    
+    async def get_all_appointments(self, limit: int = 20):
+        """Получить все записи"""
+        pool = await self.get_pool()
+        if not pool:
+            return []
+        
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT a.*, s.date, s.time, u.username, u.name
+                    FROM appointments a
+                    LEFT JOIN slots s ON a.slot_id = s.id
+                    LEFT JOIN users u ON a.user_id = u.user_id
+                    ORDER BY a.created_at DESC
+                    LIMIT $1
+                    """,
+                    limit
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Ошибка получения записей: {e}")
+            return []
+    
+    async def get_all_slots_async(self, limit: int = 20):
+        """Получить все слоты"""
+        pool = await self.get_pool()
+        if not pool:
+            return []
+        
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT * FROM slots ORDER BY date, time LIMIT $1",
+                    limit
+                )
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Ошибка получения слотов: {e}")
+            return []
+    
+    async def add_slot(self, date: str, time: str):
+        """Добавить новый слот"""
+        pool = await self.get_pool()
+        if not pool:
+            return False
+        
+        try:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO slots (date, time, is_booked) VALUES ($1, $2, FALSE)",
+                    date, time
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка добавления слота: {e}")
+            return False
+    
     def close(self):
         """Закрыть соединение с БД"""
         if self.pool:

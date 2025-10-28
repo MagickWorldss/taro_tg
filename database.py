@@ -554,6 +554,22 @@ class Database:
         columns = ['id', 'date', 'time', 'is_booked', 'created_at']
         return [dict(zip(columns, row)) for row in rows]
     
+    def add_slot(self, date: str, time: str):
+        """Добавить новый слот (sync)"""
+        import sqlite3
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.execute(
+                "INSERT INTO slots (date, time, is_booked) VALUES (?, ?, 0)",
+                (date, time)
+            )
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка добавления слота: {e}")
+            return False
+    
     def get_all_news(self, limit: int = 10) -> List[Dict]:
         """Получить все новости"""
         import sqlite3
@@ -567,4 +583,3 @@ class Database:
         
         columns = ['id', 'title', 'content', 'lang', 'created_at']
         return [dict(zip(columns, row)) for row in rows]
-

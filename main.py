@@ -60,6 +60,7 @@ class TarotStates(StatesGroup):
     waiting_for_photo = State()
     waiting_for_appointment_date = State()
     waiting_for_payment = State()
+    waiting_for_slot_date = State()
 
 
 @dp.message(Command("admin"))
@@ -668,6 +669,57 @@ async def process_birth_place(message: types.Message, state: FSMContext):
     )
 
 
+@dp.message(TarotStates.waiting_for_slot_date)
+async def process_slot_date(message: types.Message, state: FSMContext):
+    """Обработка введенной даты и времени для нового слота"""
+    admin_id = int(os.getenv("ADMIN_ID", "0"))
+    
+    # Проверяем, что это администратор
+    if message.from_user.id != admin_id:
+        await message.answer("❌ У вас нет прав для этой команды")
+        await state.clear()
+        return
+    
+    try:
+        # Парсим дату и время
+        parts = message.text.strip().split()
+        if len(parts) != 2:
+            raise ValueError("Неверный формат")
+        
+        date = parts[0]
+        time = parts[1]
+        
+        # Сохраняем в БД
+        if DATABASE_URL:
+            success = await db.add_slot(date, time)
+        else:
+            success = db.add_slot(date, time)
+        
+        await state.clear()
+        
+        if success:
+            keyboard = [
+                [InlineKeyboardButton(text="📋 Список слотов", callback_data="admin_slots")],
+                [InlineKeyboardButton(text="◀️ В админ-панель", callback_data="admin_back")]
+            ]
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+            
+            await message.answer(
+                f"✅ Слот успешно добавлен!\n\n"
+                f"📅 Дата: {date}\n"
+                f"🕐 Время: {time}",
+                reply_markup=reply_markup
+            )
+        else:
+            await message.answer(
+                "❌ Ошибка при добавлении слота. Попробуйте еще раз."
+            )
+    except:
+        await message.answer(
+            "❌ Неверный формат. Используйте:\nДД.ММ.ГГГГ ЧЧ:ММ\n\nНапример: 29.10.2025 14:00"
+        )
+
+
 @dp.callback_query(lambda c: c.data == "bonus")
 async def handle_bonus(callback: CallbackQuery):
     """Обработка раздела Бонус"""
@@ -878,17 +930,39 @@ async def handle_admin_users(callback: CallbackQuery):
     """Обработка кнопки Пользователи"""
     await callback.answer()
     
+    # Получаем список пользователей
+    if DATABASE_URL:
+        users = await db.get_all_users(limit=20)
+    else:
+        users = db.get_all_users(limit=20)
+    
+    if not users:
+        keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        await callback.message.edit_text(
+            "👥 *Пользователи*\n\n"
+            "Пользователей пока нет.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Формируем список пользователей
+    text = "👥 *Список пользователей*\n\n"
+    for i, user in enumerate(users[:10], 1):  # Показываем первые 10
+        user_id = user.get('user_id', '?')
+        username = user.get('username', 'Без username')
+        name = user.get('name', 'Без имени')
+        rating = user.get('rating', 0)
+        text += f"{i}. {name} (@{username})\n   ID: {user_id} | ⭐ {rating}\n\n"
+    
+    if len(users) > 10:
+        text += f"... и еще {len(users) - 10} пользователей\n"
+    
     keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    await callback.message.edit_text(
-        "👥 *Пользователи*\n\n"
-        "Для просмотра списка пользователей используйте SQL запросы в базе данных.\n"
-        "Таблица: users\n\n"
-        "В будущих версиях здесь будет отображаться полный список пользователей.",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 @dp.callback_query(lambda c: c.data == "admin_appointments")
@@ -896,17 +970,44 @@ async def handle_admin_appointments(callback: CallbackQuery):
     """Обработка кнопки Записи"""
     await callback.answer()
     
+    # Получаем список записей
+    if DATABASE_URL:
+        appointments = await db.get_all_appointments(limit=20)
+    else:
+        appointments = db.get_all_appointments(limit=20)
+    
+    if not appointments:
+        keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        await callback.message.edit_text(
+            "📅 *Записи на прием*\n\n"
+            "Записей пока нет.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Формируем список записей
+    text = "📅 *Записи на прием*\n\n"
+    for i, appt in enumerate(appointments[:10], 1):  # Показываем первые 10
+        user_name = appt.get('name', 'Не указано')
+        username = appt.get('username', 'Не указано')
+        date_str = appt.get('date', 'Дата не указана')
+        time_str = appt.get('time', 'Время не указано')
+        status = appt.get('status', 'pending')
+        appt_type = appt.get('appointment_type', 'offline')
+        
+        text += f"{i}. {user_name} (@{username})\n"
+        text += f"   📅 {date_str} в {time_str}\n"
+        text += f"   Тип: {appt_type} | Статус: {status}\n\n"
+    
+    if len(appointments) > 10:
+        text += f"... и еще {len(appointments) - 10} записей\n"
+    
     keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    await callback.message.edit_text(
-        "📅 *Записи на прием*\n\n"
-        "Для просмотра записей используйте SQL запросы в базе данных.\n"
-        "Таблица: appointments\n\n"
-        "В будущих версиях здесь будет отображаться список всех записей.",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 @dp.callback_query(lambda c: c.data == "admin_slots")
@@ -914,42 +1015,72 @@ async def handle_admin_slots(callback: CallbackQuery):
     """Обработка кнопки Управление слотами"""
     await callback.answer()
     
-    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    # Получаем список слотов
+    if DATABASE_URL:
+        slots = await db.get_all_slots_async(limit=30)
+    else:
+        slots = db.get_all_slots(limit=30)
+    
+    if not slots:
+        keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        await callback.message.edit_text(
+            "⏰ *Управление слотами*\n\n"
+            "Слотов пока нет.\n\n"
+            "Используйте кнопку '➕ Добавить слот' для создания.",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Формируем список слотов
+    text = "⏰ *Все слоты*\n\n"
+    available_count = 0
+    booked_count = 0
+    
+    for i, slot in enumerate(slots[:15], 1):  # Показываем первые 15
+        slot_id = slot.get('id', '?')
+        date_str = slot.get('date', 'Дата не указана')
+        time_str = slot.get('time', 'Время не указано')
+        is_booked = slot.get('is_booked', False)
+        
+        status = "🔴 Занят" if is_booked else "🟢 Свободен"
+        if not is_booked:
+            available_count += 1
+        else:
+            booked_count += 1
+        
+        text += f"{i}. {date_str} {time_str} - {status}\n"
+    
+    if len(slots) > 15:
+        text += f"\n... и еще {len(slots) - 15} слотов\n"
+    
+    text += f"\n📊 Статистика:\n🟢 Свободных: {available_count}\n🔴 Занятых: {booked_count}"
+    
+    keyboard = [
+        [InlineKeyboardButton(text="➕ Добавить слот", callback_data="admin_add_slot")],
+        [InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]
+    ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    if DATABASE_URL:
-        stats = await db.get_stats()
-    else:
-        stats = db.get_stats()
-    
-    await callback.message.edit_text(
-        "⏰ *Управление слотами*\n\n"
-        f"📊 Доступных слотов: {stats.get('available_slots', 0)}\n"
-        f"📅 Всего записей: {stats.get('total_appointments', 0)}\n\n"
-        "Для управления слотами используйте команды:\n"
-        "- /admin_add_slot - добавить слот\n\n"
-        "В будущих версиях здесь будет полное управление слотами.",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 @dp.callback_query(lambda c: c.data == "admin_add_slot")
-async def handle_admin_add_slot(callback: CallbackQuery):
+async def handle_admin_add_slot(callback: CallbackQuery, state: FSMContext):
     """Обработка кнопки Добавить слот"""
     await callback.answer()
+    await state.set_state(TarotStates.waiting_for_slot_date)
     
-    keyboard = [[InlineKeyboardButton(text="◀️ Назад в админ-панель", callback_data="admin_back")]]
+    keyboard = [[InlineKeyboardButton(text="❌ Отмена", callback_data="admin_back")]]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     await callback.message.edit_text(
         "➕ *Добавить слот*\n\n"
-        "Для добавления слотов используйте SQL запросы:\n\n"
-        "```sql\n"
-        "INSERT INTO slots (date, time, is_booked)\n"
-        "VALUES ('29.10.2025', '14:00', FALSE);\n"
-        "```\n\n"
-        "В будущих версиях здесь будет форма добавления слотов.",
+        "Введите дату и время в формате:\n"
+        "ДД.ММ.ГГГГ ЧЧ:ММ\n\n"
+        "Например: 29.10.2025 14:00\n\n"
+        "Или нажмите Отмена:",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
