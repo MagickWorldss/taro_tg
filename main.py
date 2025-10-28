@@ -114,12 +114,22 @@ async def show_main_menu(message_or_callback):
     
     # Проверяем тип - callback или message
     if isinstance(message_or_callback, CallbackQuery):
-        # Callback query - редактируем сообщение
-        await message_or_callback.message.edit_text(
-            text,
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
+        try:
+            # Callback query - пытаемся редактировать сообщение
+            await message_or_callback.message.edit_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            # Если не можем редактировать (например, предыдущее сообщение было фото),
+            # отправляем новое сообщение
+            logger.debug(f"Не могу редактировать сообщение: {e}, отправляю новое")
+            await message_or_callback.message.answer(
+                text,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
     else:
         # Message - отправляем новое
         await message_or_callback.answer(
