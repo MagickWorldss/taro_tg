@@ -238,26 +238,42 @@ async def handle_daily_card(callback: CallbackQuery):
     # Если есть изображение - отправляем фото
     if image_url:
         try:
-            # Проверяем это локальный файл или URL
-            if image_url.startswith("http"):
-                # Это URL - отправляем как есть
-                await callback.message.answer_photo(
-                    photo=image_url,
-                    caption=text,
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown"
-                )
-            else:
-                # Это локальный файл - используем FSInputFile
-                from aiogram.types import FSInputFile
-                photo = FSInputFile(image_url)
-                await callback.message.answer_photo(
-                    photo=photo,
-                    caption=text,
-                    reply_markup=reply_markup,
-                    parse_mode="Markdown"
-                )
-            return
+            from aiogram.types import BufferedInputFile
+            import aiohttp
+            from PIL import Image
+            import io
+            
+            # Загружаем изображение
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url) as response:
+                    if response.status == 200:
+                        image_bytes = await response.read()
+                        
+                        # Если карта перевернута - поворачиваем изображение
+                        if is_reversed:
+                            # Открываем изображение
+                            img = Image.open(io.BytesIO(image_bytes))
+                            # Поворачиваем на 180 градусов
+                            img_rotated = img.rotate(180)
+                            
+                            # Сохраняем в байты
+                            output = io.BytesIO()
+                            img_rotated.save(output, format='JPEG')
+                            image_bytes = output.getvalue()
+                        
+                        # Отправляем фото
+                        photo = BufferedInputFile(
+                            file=image_bytes,
+                            filename=f"{card['name']}.jpg"
+                        )
+                        
+                        await callback.message.answer_photo(
+                            photo=photo,
+                            caption=text,
+                            reply_markup=reply_markup,
+                            parse_mode="Markdown"
+                        )
+                        return
         except Exception as e:
             logger.error(f"Ошибка отправки фото: {e}")
     
