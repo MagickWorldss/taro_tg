@@ -238,16 +238,23 @@ async def handle_profile(callback: CallbackQuery):
     else:
         user = db.get_user(callback.from_user.id)
     
+    # Формируем текст без Markdown для избежания ошибок
     if user:
+        name = user.get('name', 'Не указано') or 'Не указано'
+        birth_date = user.get('birth_date', 'Не указано') or 'Не указано'
+        birth_time = user.get('birth_time', 'Не указано') or 'Не указано'
+        birth_place = user.get('birth_place', 'Не указано') or 'Не указано'
+        rating = user.get('rating', 0) or 0
+        
         text = (
-            f"👤 *Твой профиль*\n\n"
-            f"ID: `{callback.from_user.id}`\n"
+            f"👤 Твой профиль\n\n"
+            f"ID: {callback.from_user.id}\n"
             f"Username: @{callback.from_user.username or 'Не указан'}\n"
-            f"Имя: {user.get('name', 'Не указано')}\n"
-            f"Дата рождения: {user.get('birth_date', 'Не указано')}\n"
-            f"Время рождения: {user.get('birth_time', 'Не указано')}\n"
-            f"Место рождения: {user.get('birth_place', 'Не указано')}\n"
-            f"Рейтинг: ⭐ {user.get('rating', 0)}\n"
+            f"Имя: {name}\n"
+            f"Дата рождения: {birth_date}\n"
+            f"Время рождения: {birth_time}\n"
+            f"Место рождения: {birth_place}\n"
+            f"Рейтинг: ⭐ {rating}\n"
         )
     else:
         text = "Профиль не найден. Данные еще не заполнены."
@@ -258,7 +265,7 @@ async def handle_profile(callback: CallbackQuery):
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    await callback.message.edit_text(text, reply_markup=reply_markup)
 
 
 @dp.callback_query(lambda c: c.data == "bonus")
