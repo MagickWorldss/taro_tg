@@ -12,11 +12,5 @@ LOCALE = {
     "profile": "👤 Profilis",
     "bonus": "🎁 Bonusas",
     "news_feed": "📰 Naujienos",
-    "admin_panel": "🔧 Administratoriaus skydelis",
-    "edit_profile": "✏️ Redaguoti profilį",
-    "payment_methods": "Mokėjimo būdai",
-    "no_slots": "Deja, šiuo metu nėra laisvų laiko.",
-    "appointment_booked": "Įrašas sėkmingai patvirtintas!",
-    "back": "◀️ Atgal",
 }
 

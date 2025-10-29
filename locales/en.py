@@ -12,11 +12,5 @@ LOCALE = {
     "profile": "👤 Profile",
     "bonus": "🎁 Bonus",
     "news_feed": "📰 News Feed",
-    "admin_panel": "🔧 Admin Panel",
-    "edit_profile": "✏️ Edit Profile",
-    "payment_methods": "Payment Methods",
-    "no_slots": "Unfortunately, there are no available slots at the moment.",
-    "appointment_booked": "Appointment successfully booked!",
-    "back": "◀️ Back",
 }
 

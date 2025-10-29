@@ -178,6 +178,36 @@ async def handle_back_to_menu(callback: CallbackQuery):
     await show_main_menu(callback, language=language)
 
 
+def get_locale(language='ru'):
+    """Получить локализацию по языку"""
+    locale_map = {
+        'ru': 'locales.ru',
+        'en': 'locales.en',
+        'lt': 'locales.lt',
+        'pl': 'locales.pl',
+        'es': 'locales.es'
+    }
+    
+    try:
+        module_name = locale_map.get(language, 'locales.ru')
+        if module_name == 'locales.ru':
+            from locales import ru as locale
+        elif module_name == 'locales.en':
+            from locales import en as locale
+        elif module_name == 'locales.lt':
+            from locales import lt as locale
+        elif module_name == 'locales.pl':
+            from locales import pl as locale
+        elif module_name == 'locales.es':
+            from locales import es as locale
+        else:
+            from locales import ru as locale
+        return locale.LOCALE
+    except:
+        from locales import ru as locale
+        return locale.LOCALE
+
+
 async def show_language_selection(message: types.Message):
     """Показывает выбор языка для нового пользователя"""
     keyboard = [
@@ -196,18 +226,21 @@ async def show_language_selection(message: types.Message):
 
 async def show_main_menu(message_or_callback, language='ru'):
     """Показывает главное меню"""
+    # Получаем локализацию
+    locale = get_locale(language)
+    
     keyboard = [
-        [InlineKeyboardButton(text="🌙 Карта дня", callback_data="daily_card")],
-        [InlineKeyboardButton(text="🔮 Общий расклад", callback_data="general_reading")],
-        [InlineKeyboardButton(text="📅 Запись на личный прием", callback_data="appointment_offline")],
-        [InlineKeyboardButton(text="💻 Личный прием онлайн", callback_data="appointment_online")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="🎁 Бонус", callback_data="bonus")],
-        [InlineKeyboardButton(text="📰 Новостная лента", callback_data="news_feed")]
+        [InlineKeyboardButton(text=locale.get('daily_card', '🌙 Карта дня'), callback_data="daily_card")],
+        [InlineKeyboardButton(text=locale.get('general_reading', '🔮 Общий расклад'), callback_data="general_reading")],
+        [InlineKeyboardButton(text=locale.get('appointment_offline', '📅 Запись на личный прием'), callback_data="appointment_offline")],
+        [InlineKeyboardButton(text=locale.get('appointment_online', '💻 Личный прием онлайн'), callback_data="appointment_online")],
+        [InlineKeyboardButton(text=locale.get('profile', '👤 Профиль'), callback_data="profile")],
+        [InlineKeyboardButton(text=locale.get('bonus', '🎁 Бонус'), callback_data="bonus")],
+        [InlineKeyboardButton(text=locale.get('news_feed', '📰 Новостная лента'), callback_data="news_feed")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
-    text = "🔮 *Твой Таролог*\n\nВыбери интересующий раздел:"
+    text = f"🔮 *Твой Таролог*\n\n{locale.get('main_menu', 'Выбери интересующий раздел:')}"
     
     # Проверяем тип - callback или message
     if isinstance(message_or_callback, CallbackQuery):
