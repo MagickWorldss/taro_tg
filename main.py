@@ -537,31 +537,35 @@ async def handle_profile(callback: CallbackQuery):
     else:
         user = db.get_user(callback.from_user.id)
     
+    # Получаем язык
+    language = user.get('language', 'ru') if user else 'ru'
+    locale = get_locale(language)
+    
     # Формируем текст без Markdown для избежания ошибок
     if user:
-        name = user.get('name', 'Не указано') or 'Не указано'
-        birth_date = user.get('birth_date', 'Не указано') or 'Не указано'
-        birth_time = user.get('birth_time', 'Не указано') or 'Не указано'
-        birth_place = user.get('birth_place', 'Не указано') or 'Не указано'
+        name = user.get('name', locale.get('not_specified', 'Не указано')) or locale.get('not_specified', 'Не указано')
+        birth_date = user.get('birth_date', locale.get('not_specified', 'Не указано')) or locale.get('not_specified', 'Не указано')
+        birth_time = user.get('birth_time', locale.get('not_specified', 'Не указано')) or locale.get('not_specified', 'Не указано')
+        birth_place = user.get('birth_place', locale.get('not_specified', 'Не указано')) or locale.get('not_specified', 'Не указано')
         rating = user.get('rating', 0) or 0
         
         text = (
-            f"👤 Твой профиль\n\n"
+            f"{locale.get('profile_title', '👤 Твой профиль')}\n\n"
             f"ID: {callback.from_user.id}\n"
-            f"Username: @{callback.from_user.username or 'Не указан'}\n"
-            f"Имя: {name}\n"
-            f"Дата рождения: {birth_date}\n"
-            f"Время рождения: {birth_time}\n"
-            f"Место рождения: {birth_place}\n"
-            f"Рейтинг: ⭐ {rating}\n"
+            f"{locale.get('username_label', 'Username:')} @{callback.from_user.username or locale.get('username_not_set', 'Не указан')}\n"
+            f"{locale.get('name_label', 'Имя:')} {name}\n"
+            f"{locale.get('birth_date_label', 'Дата рождения:')} {birth_date}\n"
+            f"{locale.get('birth_time_label', 'Время рождения:')} {birth_time}\n"
+            f"{locale.get('birth_place_label', 'Место рождения:')} {birth_place}\n"
+            f"{locale.get('rating_label', 'Рейтинг:')} ⭐ {rating}\n"
         )
     else:
-        text = "Профиль не найден. Данные еще не заполнены."
+        text = locale.get('profile_not_found', 'Профиль не найден. Данные еще не заполнены.')
     
     keyboard = [
-        [InlineKeyboardButton(text="🌍 Изменить язык", callback_data="change_language")],
-        [InlineKeyboardButton(text="✏️ Редактировать", callback_data="edit_profile")],
-        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        [InlineKeyboardButton(text=locale.get('change_language_btn', '🌍 Изменить язык'), callback_data="change_language")],
+        [InlineKeyboardButton(text=locale.get('edit_btn', '✏️ Редактировать'), callback_data="edit_profile")],
+        [InlineKeyboardButton(text=locale.get('back_to_menu', '◀️ Назад в меню'), callback_data="back_to_menu")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
