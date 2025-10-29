@@ -280,6 +280,14 @@ async def handle_daily_card(callback: CallbackQuery):
     
     user_id = callback.from_user.id
     
+    # Получаем язык пользователя
+    if DATABASE_URL:
+        user = await db.get_user(user_id)
+    else:
+        user = db.get_user(user_id)
+    language = user.get('language', 'ru') if user else 'ru'
+    locale = get_locale(language)
+    
     # Проверяем, можно ли получить карту дня
     if DATABASE_URL:
         can_get = await db.can_get_daily_card(user_id)
@@ -294,10 +302,10 @@ async def handle_daily_card(callback: CallbackQuery):
                 interpretation = get_card_meaning(card, is_reversed)
             else:
                 # Не можем получить карту и нет сохраненной - показываем ошибку
-                keyboard = [[InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]]
+                keyboard = [[InlineKeyboardButton(text=locale.get('back_to_menu', '◀️ Назад в меню'), callback_data="back_to_menu")]]
                 reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
                 await callback.message.edit_text(
-                    "⏰ Ты уже получил карту дня! Следующая карта будет доступна через 24 часа.",
+                    locale.get('daily_card_already', '⏰ Ты уже получил карту дня! Следующая карта будет доступна через 24 часа.'),
                     reply_markup=reply_markup
                 )
                 return
@@ -338,30 +346,30 @@ async def handle_daily_card(callback: CallbackQuery):
     
     # Получаем визуализацию карты
     card_visual = get_card_full_info(card, is_reversed)
-    status_text = "🔴 ПЕРЕВЕРНУТА" if is_reversed else "🟢 ПРЯМАЯ"
+    status_text = locale.get('reversed', '🔴 ПЕРЕВЕРНУТА') if is_reversed else locale.get('upright', '🟢 ПРЯМАЯ')
     
     # Пробуем получить изображение
     image_url = await get_tarot_image_from_api(card["name"])
     
     # Добавляем кнопку "Назад"
     keyboard = [
-        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        [InlineKeyboardButton(text=locale.get('back_to_menu', '◀️ Назад в меню'), callback_data="back_to_menu")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
     
     # Формируем сообщение о времени до следующей карты
     if hours_left == 24:
-        time_text = "_Следующая карта будет доступна завтра_"
+        time_text = f"_{locale.get('daily_card_tomorrow', 'Следующая карта будет доступна завтра')}_"
     elif hours_left > 0:
-        time_text = f"_Следующая карта будет доступна через {hours_left} час(ов)_"
+        time_text = f"_{locale.get('daily_card_hours', 'Следующая карта будет доступна через {hours} час(ов)').format(hours=hours_left)}_"
     else:
-        time_text = "_Следующая карта доступна!_"
+        time_text = f"_{locale.get('daily_card_available', 'Следующая карта доступна!')}_"
     
     text = (
-        f"🌙 *Твоя карта дня*\n\n"
+        f"{locale.get('daily_card_title', '🌙 Твоя карта дня')}\n\n"
         f"*{card['name']}*\n"
-        f"Позиция: {status_text}\n\n"
-        f"*Толкование:*\n{interpretation}\n\n"
+        f"{locale.get('position', 'Позиция:')} {status_text}\n\n"
+        f"*{locale.get('interpretation', 'Толкование:')}*\n{interpretation}\n\n"
         f"{time_text}"
     )
     
